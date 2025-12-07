@@ -46,7 +46,7 @@ app.post("/deploy", (req, res) => __awaiter(void 0, void 0, void 0, function* ()
 }));
 app.get("/status", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const id = req.query.id;
-    const response = yield subscriber.hGet("status", id);
+    const response = yield subscriber.Get("status", id);
     res.json({
         status: response
     });

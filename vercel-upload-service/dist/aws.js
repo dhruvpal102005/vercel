@@ -20,8 +20,6 @@ const s3 = new aws_sdk_1.S3({
     secretAccessKey: "b4df203781dd711223ce931a2d7ca269cdbf81bb530de4548474584951b798be",
     endpoint: "https://e21220f4758c0870ba9c388712d42ef2.r2.cloudflarestorage.com"
 });
-// fileName => output/12312/src/App.jsx
-// filePath => /Users/harkiratsingh/vercel/dist/output/12312/src/App.jsx
 const uploadFile = (fileName, localFilePath) => __awaiter(void 0, void 0, void 0, function* () {
     const fileContent = fs_1.default.readFileSync(localFilePath);
     const response = yield s3.upload({

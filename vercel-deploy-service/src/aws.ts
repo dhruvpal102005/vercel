@@ -1,42 +1,52 @@
-import { S3 } from "aws-sdk";
+import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import fs from "fs";
 import path from "path";
+import { Readable } from "stream";
 
-const s3 = new S3({
-    accessKeyId: "7ea9c3f8c7f0f26f0d21c5ce99d1ad6a",
-    secretAccessKey: "b4df203781dd711223ce931a2d7ca269cdbf81bb530de4548474584951b798be",
-    endpoint: "https://e21220f4758c0870ba9c388712d42ef2.r2.cloudflarestorage.com"
+const s3 = new S3Client({
+    region: "auto",
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
+    },
+    endpoint: process.env.AWS_ENDPOINT
 })
 
-// output/asdasd
 export async function downloadS3Folder(prefix: string) {
-    const allFiles = await s3.listObjectsV2({
+    const allFiles = await s3.send(new ListObjectsV2Command({
         Bucket: "vercel",
         Prefix: prefix
-    }).promise();
-    
-    // 
-    const allPromises = allFiles.Contents?.map(async ({Key}) => {
+    }));
+
+    const allPromises = allFiles.Contents?.map(async ({ Key }) => {
         return new Promise(async (resolve) => {
             if (!Key) {
                 resolve("");
                 return;
             }
             const finalOutputPath = path.join(__dirname, Key);
-            const outputFile = fs.createWriteStream(finalOutputPath);
             const dirName = path.dirname(finalOutputPath);
-            if (!fs.existsSync(dirName)){
+            if (!fs.existsSync(dirName)) {
                 fs.mkdirSync(dirName, { recursive: true });
             }
-            s3.getObject({
+            const outputFile = fs.createWriteStream(finalOutputPath);
+
+            const getObjectParams = {
                 Bucket: "vercel",
                 Key
-            }).createReadStream().pipe(outputFile).on("finish", () => {
+            };
+            const { Body } = await s3.send(new GetObjectCommand(getObjectParams));
+
+            if (Body instanceof Readable) {
+                Body.pipe(outputFile).on("finish", () => {
+                    resolve("");
+                });
+            } else {
+                // Should not happen in Node environment usually, but handle just in case or resolve immediately
                 resolve("");
-            })
+            }
         })
     }) || []
-    console.log("awaiting");
 
     await Promise.all(allPromises?.filter(x => x !== undefined));
 }
@@ -52,7 +62,7 @@ export function copyFinalDist(id: string) {
 const getAllFiles = (folderPath: string) => {
     let response: string[] = [];
 
-    const allFilesAndFolders = fs.readdirSync(folderPath);allFilesAndFolders.forEach(file => {
+    const allFilesAndFolders = fs.readdirSync(folderPath); allFilesAndFolders.forEach(file => {
         const fullFilePath = path.join(folderPath, file);
         if (fs.statSync(fullFilePath).isDirectory()) {
             response = response.concat(getAllFiles(fullFilePath))
@@ -65,10 +75,10 @@ const getAllFiles = (folderPath: string) => {
 
 const uploadFile = async (fileName: string, localFilePath: string) => {
     const fileContent = fs.readFileSync(localFilePath);
-    const response = await s3.upload({
+    const response = await s3.send(new PutObjectCommand({
         Body: fileContent,
         Bucket: "vercel",
         Key: fileName,
-    }).promise();
+    }));
     console.log(response);
 }

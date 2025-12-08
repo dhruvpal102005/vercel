@@ -14,7 +14,7 @@ const s3 = new S3Client({
 
 export async function downloadS3Folder(prefix: string) {
     const allFiles = await s3.send(new ListObjectsV2Command({
-        Bucket: "vercel",
+        Bucket: process.env.S3_BUCKET_NAME || "vercel",
         Prefix: prefix
     }));
 
@@ -32,7 +32,7 @@ export async function downloadS3Folder(prefix: string) {
             const outputFile = fs.createWriteStream(finalOutputPath);
 
             const getObjectParams = {
-                Bucket: "vercel",
+                Bucket: process.env.S3_BUCKET_NAME || "vercel",
                 Key
             };
             const { Body } = await s3.send(new GetObjectCommand(getObjectParams));
@@ -77,7 +77,7 @@ const uploadFile = async (fileName: string, localFilePath: string) => {
     const fileContent = fs.readFileSync(localFilePath);
     const response = await s3.send(new PutObjectCommand({
         Body: fileContent,
-        Bucket: "vercel",
+        Bucket: process.env.S3_BUCKET_NAME || "vercel",
         Key: fileName,
     }));
     console.log(response);

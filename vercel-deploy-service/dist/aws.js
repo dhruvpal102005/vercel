@@ -14,23 +14,25 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.downloadS3Folder = downloadS3Folder;
 exports.copyFinalDist = copyFinalDist;
-const aws_sdk_1 = require("aws-sdk");
+const client_s3_1 = require("@aws-sdk/client-s3");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
-const s3 = new aws_sdk_1.S3({
-    accessKeyId: "7ea9c3f8c7f0f26f0d21c5ce99d1ad6a",
-    secretAccessKey: "b4df203781dd711223ce931a2d7ca269cdbf81bb530de4548474584951b798be",
-    endpoint: "https://e21220f4758c0870ba9c388712d42ef2.r2.cloudflarestorage.com"
+const stream_1 = require("stream");
+const s3 = new client_s3_1.S3Client({
+    region: "auto",
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
+    },
+    endpoint: process.env.AWS_ENDPOINT
 });
-// output/asdasd
 function downloadS3Folder(prefix) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a;
-        const allFiles = yield s3.listObjectsV2({
-            Bucket: "vercel",
+        const allFiles = yield s3.send(new client_s3_1.ListObjectsV2Command({
+            Bucket: process.env.S3_BUCKET_NAME || "vercel",
             Prefix: prefix
-        }).promise();
-        // 
+        }));
         const allPromises = ((_a = allFiles.Contents) === null || _a === void 0 ? void 0 : _a.map((_a) => __awaiter(this, [_a], void 0, function* ({ Key }) {
             return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
                 if (!Key) {
@@ -38,20 +40,27 @@ function downloadS3Folder(prefix) {
                     return;
                 }
                 const finalOutputPath = path_1.default.join(__dirname, Key);
-                const outputFile = fs_1.default.createWriteStream(finalOutputPath);
                 const dirName = path_1.default.dirname(finalOutputPath);
                 if (!fs_1.default.existsSync(dirName)) {
                     fs_1.default.mkdirSync(dirName, { recursive: true });
                 }
-                s3.getObject({
-                    Bucket: "vercel",
+                const outputFile = fs_1.default.createWriteStream(finalOutputPath);
+                const getObjectParams = {
+                    Bucket: process.env.S3_BUCKET_NAME || "vercel",
                     Key
-                }).createReadStream().pipe(outputFile).on("finish", () => {
+                };
+                const { Body } = yield s3.send(new client_s3_1.GetObjectCommand(getObjectParams));
+                if (Body instanceof stream_1.Readable) {
+                    Body.pipe(outputFile).on("finish", () => {
+                        resolve("");
+                    });
+                }
+                else {
+                    // Should not happen in Node environment usually, but handle just in case or resolve immediately
                     resolve("");
-                });
+                }
             }));
         }))) || [];
-        console.log("awaiting");
         yield Promise.all(allPromises === null || allPromises === void 0 ? void 0 : allPromises.filter(x => x !== undefined));
     });
 }
@@ -78,10 +87,10 @@ const getAllFiles = (folderPath) => {
 };
 const uploadFile = (fileName, localFilePath) => __awaiter(void 0, void 0, void 0, function* () {
     const fileContent = fs_1.default.readFileSync(localFilePath);
-    const response = yield s3.upload({
+    const response = yield s3.send(new client_s3_1.PutObjectCommand({
         Body: fileContent,
-        Bucket: "vercel",
+        Bucket: process.env.S3_BUCKET_NAME || "vercel",
         Key: fileName,
-    }).promise();
+    }));
     console.log(response);
 });

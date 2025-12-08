@@ -13,20 +13,23 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.uploadFile = void 0;
-const aws_sdk_1 = require("aws-sdk");
+const client_s3_1 = require("@aws-sdk/client-s3");
 const fs_1 = __importDefault(require("fs"));
-const s3 = new aws_sdk_1.S3({
-    accessKeyId: "7ea9c3f8c7f0f26f0d21c5ce99d1ad6a",
-    secretAccessKey: "b4df203781dd711223ce931a2d7ca269cdbf81bb530de4548474584951b798be",
-    endpoint: "https://e21220f4758c0870ba9c388712d42ef2.r2.cloudflarestorage.com"
+const s3 = new client_s3_1.S3Client({
+    region: "auto",
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
+    },
+    endpoint: process.env.AWS_ENDPOINT
 });
 const uploadFile = (fileName, localFilePath) => __awaiter(void 0, void 0, void 0, function* () {
     const fileContent = fs_1.default.readFileSync(localFilePath);
-    const response = yield s3.upload({
+    const response = yield s3.send(new client_s3_1.PutObjectCommand({
         Body: fileContent,
-        Bucket: "vercel",
+        Bucket: process.env.S3_BUCKET_NAME || "vercel",
         Key: fileName,
-    }).promise();
+    }));
     console.log(response);
 });
 exports.uploadFile = uploadFile;

@@ -12,6 +12,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+require("dotenv").config();
+const fs_1 = __importDefault(require("fs"));
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const simple_git_1 = __importDefault(require("simple-git"));
@@ -29,24 +31,38 @@ app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 app.post("/deploy", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const repoUrl = req.body.repoUrl;
-    const id = (0, utils_1.generate)(); // asd12
-    yield (0, simple_git_1.default)().clone(repoUrl, path_1.default.join(__dirname, `output/${id}`));
-    const files = (0, file_1.getAllFiles)(path_1.default.join(__dirname, `output/${id}`));
-    files.forEach((file) => __awaiter(void 0, void 0, void 0, function* () {
-        yield (0, aws_1.uploadFile)(file.slice(__dirname.length + 1), file);
-    }));
-    yield new Promise((resolve) => setTimeout(resolve, 5000));
-    publisher.lPush("build-queue", id);
-    // INSERT => SQL
-    // .create => 
-    publisher.hSet("status", id, "uploaded");
-    res.json({
-        id: id
-    });
+    const id = (0, utils_1.generate)();
+    const outputPath = path_1.default.join(__dirname, `output/${id}`);
+    try {
+        yield (0, simple_git_1.default)().clone(repoUrl, outputPath);
+        const files = (0, file_1.getAllFiles)(outputPath);
+        // Upload files in parallel? The original code did forEach async which is risky without Promise.all
+        // But let's stick to the original logic structure but correct resource usage if possible. 
+        // Original: files.forEach(async file ... ) - this returns immediately.
+        // We should await it.
+        yield Promise.all(files.map((file) => __awaiter(void 0, void 0, void 0, function* () {
+            yield (0, aws_1.uploadFile)(file.slice(__dirname.length + 1), file);
+        })));
+        yield new Promise((resolve) => setTimeout(resolve, 5000));
+        publisher.lPush("build-queue", id);
+        publisher.hSet("status", id, "uploaded");
+        res.json({
+            id: id
+        });
+    }
+    catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Deployment failed" });
+    }
+    finally {
+        if (fs_1.default.existsSync(outputPath)) {
+            fs_1.default.rmSync(outputPath, { recursive: true, force: true });
+        }
+    }
 }));
 app.get("/status", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const id = req.query.id;
-    const response = yield subscriber.Get("status", id);
+    const response = yield subscriber.hGet("status", id);
     res.json({
         status: response
     });

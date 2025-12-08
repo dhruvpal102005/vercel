@@ -14,7 +14,7 @@ export const uploadFile = async (fileName: string, localFilePath: string) => {
     const fileContent = fs.readFileSync(localFilePath);
     const response = await s3.send(new PutObjectCommand({
         Body: fileContent,
-        Bucket: "vercel",
+        Bucket: process.env.S3_BUCKET_NAME || "vercel",
         Key: fileName,
     }));
     console.log(response);
